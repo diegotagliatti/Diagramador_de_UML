@@ -75,29 +75,61 @@ diagrama/
 
 ## Como Executar
 
-### 1. Abrir o terminal no diretório do projeto:
+Existem duas formas de utilizar o PyDiagram: executando o código-fonte diretamente através do Python (recomendado) ou utilizando as versões empacotadas.
 
-```powershell
-cd "C:\Arquivos online\Projetos com ia\diagrama"
+### Opção 1: Executar via Código-Fonte (Recomendado)
+
+Esta é a versão mais estável e com menos probabilidade de apresentar bugs imprevistos.
+
+**1. Abrir o terminal no diretório do projeto:**
+Navegue até à pasta onde o projeto foi clonado ou descarregado:
+```bash
+cd caminho/para/a/pasta/do/projeto
 ```
 
-### 2. Ativar o Ambiente Virtual (venv):
+**2. Criar o Ambiente Virtual (venv):**
 
-* **No PowerShell:**
-
-  ```powershell
-  .\venv\Scripts\Activate.ps1
-  ```
-
-  *(Se sua política de execução restringir scripts, execute* `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` *ou use o Command Prompt)*
-* **No Prompt de Comando (CMD):**
-
-  ```cmd
-  venv\Scripts\activate.bat
-  ```
-
-### 3. Rodar a Aplicação:
-
+- **No Windows:**
 ```powershell
+python -m venv venv
+```
+
+- **No Linux / macOS:**
+```bash
+python3 -m venv venv
+```
+*(Nota: No Linux, caso ocorra um erro de pacote ausente, execute `sudo apt install python3-venv` ou `python3.10-venv` antes de tentar novamente).*
+
+**3. Ativar o Ambiente Virtual:**
+
+- **No Windows (PowerShell):**
+```powershell
+.\venv\Scripts\Activate.ps1
+```
+*(Nota: Se o Windows bloquear o script, execute primeiro `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` ou utilize o CMD).*
+
+- **No Windows (CMD):**
+```cmd
+venv\Scripts\activate.bat
+```
+
+- **No Linux/macOS:**
+```bash
+source venv/bin/activate
+```
+
+**4. Instalar Dependências e Iniciar a Aplicação:**
+```bash
+pip install PyQt6
 python main.py
 ```
+
+### Opção 2: Versões Instaláveis Pré-Compiladas
+
+Caso prefira não configurar o Python no seu computador, disponibilizamos versões prontas a usar (standalone) na aba **Releases** deste repositório:
+
+* **Windows:** Executável portátil (.exe)
+* **Linux (Debian/Ubuntu/Mint):** Pacote de instalação (.deb)
+* **Linux (Fedora/RedHat):** Pacote de instalação (.rpm)
+
+> **Aviso de Estabilidade:** Estas versões pré-compiladas facilitam o acesso, mas o processo de empacotamento pode introduzir bugs ocasionais ou comportamentos inesperados na interface. 
