@@ -1,0 +1,151 @@
+{
+  "version": "1.0",
+  "generator": "PyDiagram",
+  "nodes": [
+    {
+      "id": "node_produto",
+      "title": "Produto",
+      "x": 400.0,
+      "y": 100.0,
+      "width": 170.0,
+      "height": 140.0,
+      "is_abstract": false,
+      "title_font_family": "Segoe UI",
+      "title_font_size": 10,
+      "title_color": "#1e293b",
+      "attributes": [
+        {
+          "text": "- Nome",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        },
+        {
+          "text": "- preco_base",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        },
+        {
+          "text": "+ desconto",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        }
+      ],
+      "methods": [
+        {
+          "text": "+ calcular_preco()",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        }
+      ]
+    },
+    {
+      "id": "node_eletronico",
+      "title": "Produto_eletronico",
+      "x": 150.0,
+      "y": 300.0,
+      "width": 170.0,
+      "height": 100.0,
+      "is_abstract": false,
+      "title_font_family": "Segoe UI",
+      "title_font_size": 10,
+      "title_color": "#1e293b",
+      "attributes": [],
+      "methods": [
+        {
+          "text": "+ Preco_varejo()",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        },
+        {
+          "text": "+ calcular_preco()",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        }
+      ]
+    },
+    {
+      "id": "node_roupa",
+      "title": "Produto_roupa",
+      "x": 400.0,
+      "y": 300.0,
+      "width": 170.0,
+      "height": 100.0,
+      "is_abstract": false,
+      "title_font_family": "Segoe UI",
+      "title_font_size": 10,
+      "title_color": "#1e293b",
+      "attributes": [],
+      "methods": [
+        {
+          "text": "+ Preco_etiqueta()",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        },
+        {
+          "text": "+ calcular_preco()",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        }
+      ]
+    },
+    {
+      "id": "node_livro",
+      "title": "Produto_livro",
+      "x": 650.0,
+      "y": 300.0,
+      "width": 170.0,
+      "height": 100.0,
+      "is_abstract": false,
+      "title_font_family": "Segoe UI",
+      "title_font_size": 10,
+      "title_color": "#1e293b",
+      "attributes": [],
+      "methods": [
+        {
+          "text": "+ Preco_capa()",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        },
+        {
+          "text": "+ calcular_preco()",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "source_id": "node_eletronico",
+      "target_id": "node_produto"
+    },
+    {
+      "source_id": "node_roupa",
+      "target_id": "node_produto"
+    },
+    {
+      "source_id": "node_livro",
+      "target_id": "node_produto"
+    }
+  ]
+}

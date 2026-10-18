@@ -1,7 +1,3 @@
-# Diagramador_de_UML
-O PyDiagram é um editor visual de diagramas UML construído inteiramente em Python e PyQt6. O seu objetivo principal é permitir que qualquer utilizador consiga desenhar, organizar e editar diagramas de classes de forma rápida e interativa, funcionando como uma aplicação de ambiente de trabalho totalmente independente e sem necessidade de internet
-
-
 # PyDiagram
 
 Aplicativo desktop open-source para modelagem e diagramação UML, inspirado no StarUML e desenvolvido exclusivamente em **Python** com **PyQt6**.
@@ -82,7 +78,7 @@ diagrama/
 ### 1. Abrir o terminal no diretório do projeto:
 
 ```powershell
-Ir pasta onde foi baixado"
+cd "C:\Arquivos online\Projetos com ia\diagrama"
 ```
 
 ### 2. Ativar o Ambiente Virtual (venv):
@@ -105,12 +101,3 @@ Ir pasta onde foi baixado"
 ```powershell
 python main.py
 ```
-### Opção 2: Versões Instaláveis Pré-Compiladas
-
-Caso prefira não configurar o Python no seu computador, disponibilizamos versões prontas a usar (standalone) na aba **Releases** deste repositório:
-
-* **Windows:** Executável portátil (.exe)
-* **Linux (Debian/Ubuntu/Mint):** Pacote de instalação (.deb)
-* **Linux (Fedora/RedHat):** Pacote de instalação (.rpm)
-
-> **Aviso de Estabilidade:** Estas versões pré-compiladas facilitam o acesso, mas o processo de empacotamento pode introduzir bugs ocasionais ou comportamentos inesperados na interface.
