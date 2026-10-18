@@ -124,7 +124,7 @@ pip install PyQt6
 python main.py
 ```
 
-### Opção 2: Versões Instaláveis Pré-Compiladas
+### Opção 2: Versões Instaláveis Pré-Compiladas (BAIXAR NO Releases)
 
 Caso prefira não configurar o Python no seu computador, disponibilizamos versões prontas a usar (standalone) na aba **Releases** deste repositório:
 
