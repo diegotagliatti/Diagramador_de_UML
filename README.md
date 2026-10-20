@@ -1,4 +1,4 @@
-# PyDiagram
+# PyDiagram 1.0
 
 Aplicativo desktop open-source para modelagem e diagramação UML, inspirado no StarUML e desenvolvido exclusivamente em **Python** com **PyQt6**.
 
@@ -133,3 +133,11 @@ Caso prefira não configurar o Python no seu computador, disponibilizamos versõ
 * **Linux (Fedora/RedHat):** Pacote de instalação (.rpm)
 
 > **Aviso de Estabilidade:** Estas versões pré-compiladas facilitam o acesso, mas o processo de empacotamento pode introduzir bugs ocasionais ou comportamentos inesperados na interface. 
+
+## PyDiagram 1.1
+
+* **Semântica UML Completa:** Suporte total para *Generalization*, *Dependency*, *Realization*, *Aggregation*, *Composition*, *Association* e *Directed Association*.
+* **Multiplicidade e Papéis:** Configuração de extremidades (End 1 e End 2) via menu de contexto, renderizando textos como `1..*` e `0..1` diretamente no diagrama.
+* **Classes Associativas:** Criação automática de nós e linhas tracejadas ligadas ao ponto médio de relações existentes.
+* **Roteamento Inteligente (Waypoints):** As linhas agora são poligonais. Faça duplo clique numa linha para adicionar pontos de controlo e rotear a ligação livremente pelo ecrã.
+* **Motor de Idiomas Dinâmico (Anti-Crash):** O sistema agora lê traduções dinamicamente da pasta `locales/`. Ficheiros corrompidos são ignorados silenciosamente.
