@@ -134,18 +134,67 @@
       ]
     }
   ],
+  "anchors": [],
   "connections": [
     {
+      "id": "conn_0",
       "source_id": "node_eletronico",
-      "target_id": "node_produto"
+      "target_id": "node_produto",
+      "connection_type": "Generalization",
+      "type": "Generalization",
+      "end1_props": {
+        "multiplicity": "",
+        "name": "",
+        "visibility": "public",
+        "navigable": "unspecified"
+      },
+      "end2_props": {
+        "multiplicity": "",
+        "name": "",
+        "visibility": "public",
+        "navigable": "unspecified"
+      },
+      "waypoints": []
     },
     {
+      "id": "conn_1",
       "source_id": "node_roupa",
-      "target_id": "node_produto"
+      "target_id": "node_produto",
+      "connection_type": "Generalization",
+      "type": "Generalization",
+      "end1_props": {
+        "multiplicity": "",
+        "name": "",
+        "visibility": "public",
+        "navigable": "unspecified"
+      },
+      "end2_props": {
+        "multiplicity": "",
+        "name": "",
+        "visibility": "public",
+        "navigable": "unspecified"
+      },
+      "waypoints": []
     },
     {
+      "id": "conn_2",
       "source_id": "node_livro",
-      "target_id": "node_produto"
+      "target_id": "node_produto",
+      "connection_type": "Generalization",
+      "type": "Generalization",
+      "end1_props": {
+        "multiplicity": "",
+        "name": "",
+        "visibility": "public",
+        "navigable": "unspecified"
+      },
+      "end2_props": {
+        "multiplicity": "",
+        "name": "",
+        "visibility": "public",
+        "navigable": "unspecified"
+      },
+      "waypoints": []
     }
   ]
 }

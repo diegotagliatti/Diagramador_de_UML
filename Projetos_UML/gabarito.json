@@ -1,0 +1,380 @@
+{
+  "version": "1.0",
+  "generator": "PyDiagram",
+  "nodes": [
+    {
+      "id": "node_0",
+      "title": "Classe7",
+      "x": 465.2499999999999,
+      "y": -25.700000000000003,
+      "width": 197.0,
+      "height": 102.0,
+      "is_abstract": false,
+      "title_font_family": "Segoe UI",
+      "title_font_size": 10,
+      "title_color": "#1e293b",
+      "attributes": [
+        {
+          "text": "+ atributo: tipo",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        }
+      ],
+      "methods": [
+        {
+          "text": "+ operacao(): void",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        }
+      ]
+    },
+    {
+      "id": "node_1",
+      "title": "Classe6",
+      "x": -55.05000000000001,
+      "y": 108.35,
+      "width": 197.0,
+      "height": 102.0,
+      "is_abstract": false,
+      "title_font_family": "Segoe UI",
+      "title_font_size": 10,
+      "title_color": "#1e293b",
+      "attributes": [
+        {
+          "text": "+ atributo: tipo",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        }
+      ],
+      "methods": [
+        {
+          "text": "+ operacao(): void",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        }
+      ]
+    },
+    {
+      "id": "node_2",
+      "title": "Classe5",
+      "x": 442.2999999999999,
+      "y": 261.85,
+      "width": 197.0,
+      "height": 102.0,
+      "is_abstract": false,
+      "title_font_family": "Segoe UI",
+      "title_font_size": 10,
+      "title_color": "#1e293b",
+      "attributes": [
+        {
+          "text": "+ atributo: tipo",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        }
+      ],
+      "methods": [
+        {
+          "text": "+ operacao(): void",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        }
+      ]
+    },
+    {
+      "id": "node_3",
+      "title": "Classe4",
+      "x": 84.15000000000003,
+      "y": 271.7,
+      "width": 197.0,
+      "height": 102.0,
+      "is_abstract": false,
+      "title_font_family": "Segoe UI",
+      "title_font_size": 10,
+      "title_color": "#1e293b",
+      "attributes": [
+        {
+          "text": "+ atributo: tipo",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        }
+      ],
+      "methods": [
+        {
+          "text": "+ operacao(): void",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        }
+      ]
+    },
+    {
+      "id": "node_4",
+      "title": "Classe3",
+      "x": 177.95000000000005,
+      "y": 10.150000000000034,
+      "width": 197.0,
+      "height": 102.0,
+      "is_abstract": false,
+      "title_font_family": "Segoe UI",
+      "title_font_size": 10,
+      "title_color": "#1e293b",
+      "attributes": [
+        {
+          "text": "+ atributo: tipo",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        }
+      ],
+      "methods": [
+        {
+          "text": "+ operacao(): void",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        }
+      ]
+    },
+    {
+      "id": "node_5",
+      "title": "Pedido",
+      "x": 303.29999999999995,
+      "y": -249.74999999999994,
+      "width": 216.0,
+      "height": 177.0,
+      "is_abstract": false,
+      "title_font_family": "Segoe UI",
+      "title_font_size": 10,
+      "title_color": "#1e293b",
+      "attributes": [
+        {
+          "text": "- id: int",
+          "is_italic": false,
+          "font_family": "Segoe Script",
+          "font_size": 9,
+          "color": "#334155"
+        },
+        {
+          "text": "- total: float",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        },
+        {
+          "text": "- dataCriacao: string",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        }
+      ],
+      "methods": [
+        {
+          "text": "+ calcularTotal(): float",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        },
+        {
+          "text": "+ cancelar(): void",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        }
+      ]
+    },
+    {
+      "id": "node_6",
+      "title": "Novaclasse",
+      "x": -144.18125323650406,
+      "y": -129.2659511775554,
+      "width": 197.0,
+      "height": 102.0,
+      "is_abstract": false,
+      "title_font_family": "Segoe UI",
+      "title_font_size": 10,
+      "title_color": "#1e293b",
+      "attributes": [
+        {
+          "text": "+ atributo: tipo",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        }
+      ],
+      "methods": [
+        {
+          "text": "+ operacao(): void",
+          "is_italic": false,
+          "font_family": "Segoe UI",
+          "font_size": 9,
+          "color": "#334155"
+        }
+      ]
+    }
+  ],
+  "anchors": [],
+  "connections": [
+    {
+      "id": "conn_0",
+      "source_id": "node_3",
+      "target_id": "node_0",
+      "connection_type": "Realization",
+      "type": "Realization",
+      "end1_props": {
+        "multiplicity": "",
+        "name": "",
+        "visibility": "public",
+        "navigable": "unspecified"
+      },
+      "end2_props": {
+        "multiplicity": "",
+        "name": "",
+        "visibility": "public",
+        "navigable": "unspecified"
+      },
+      "waypoints": []
+    },
+    {
+      "id": "conn_1",
+      "source_id": "node_1",
+      "target_id": "node_2",
+      "connection_type": "Dependency",
+      "type": "Dependency",
+      "end1_props": {
+        "multiplicity": "",
+        "name": "",
+        "visibility": "public",
+        "navigable": "unspecified"
+      },
+      "end2_props": {
+        "multiplicity": "",
+        "name": "",
+        "visibility": "public",
+        "navigable": "unspecified"
+      },
+      "waypoints": []
+    },
+    {
+      "id": "conn_2",
+      "source_id": "node_3",
+      "target_id": "node_4",
+      "connection_type": "Composition",
+      "type": "Composition",
+      "end1_props": {
+        "multiplicity": "",
+        "name": "",
+        "visibility": "public",
+        "navigable": "unspecified"
+      },
+      "end2_props": {
+        "multiplicity": "",
+        "name": "",
+        "visibility": "public",
+        "navigable": "unspecified"
+      },
+      "waypoints": []
+    },
+    {
+      "id": "conn_3",
+      "source_id": "node_6",
+      "target_id": "node_1",
+      "connection_type": "Aggregation",
+      "type": "Aggregation",
+      "end1_props": {
+        "multiplicity": "",
+        "name": "",
+        "visibility": "public",
+        "navigable": "unspecified"
+      },
+      "end2_props": {
+        "multiplicity": "",
+        "name": "",
+        "visibility": "public",
+        "navigable": "unspecified"
+      },
+      "waypoints": []
+    },
+    {
+      "id": "conn_4",
+      "source_id": "node_6",
+      "target_id": "node_0",
+      "connection_type": "Directed Association",
+      "type": "Directed Association",
+      "end1_props": {
+        "multiplicity": "",
+        "name": "",
+        "visibility": "public",
+        "navigable": "unspecified"
+      },
+      "end2_props": {
+        "multiplicity": "",
+        "name": "",
+        "visibility": "public",
+        "navigable": "unspecified"
+      },
+      "waypoints": []
+    },
+    {
+      "id": "conn_5",
+      "source_id": "node_6",
+      "target_id": "node_4",
+      "connection_type": "Association",
+      "type": "Association",
+      "end1_props": {
+        "multiplicity": "",
+        "name": "",
+        "visibility": "public",
+        "navigable": "unspecified"
+      },
+      "end2_props": {
+        "multiplicity": "",
+        "name": "",
+        "visibility": "public",
+        "navigable": "unspecified"
+      },
+      "waypoints": []
+    },
+    {
+      "id": "conn_6",
+      "source_id": "node_6",
+      "target_id": "node_5",
+      "connection_type": "Generalization",
+      "type": "Generalization",
+      "end1_props": {
+        "multiplicity": "",
+        "name": "",
+        "visibility": "public",
+        "navigable": "unspecified"
+      },
+      "end2_props": {
+        "multiplicity": "",
+        "name": "",
+        "visibility": "public",
+        "navigable": "unspecified"
+      },
+      "waypoints": []
+    }
+  ]
+}

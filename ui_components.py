@@ -39,6 +39,7 @@ class DiagramScene(QGraphicsScene):
 
         # Estado do modo de conexão
         self._connection_mode: bool = False
+        self.connection_type: str = "Generalization"
         self.start_node: Optional[DiagramNodeItem] = None
         self.temp_connection_line: Optional[QGraphicsLineItem] = None
 
@@ -49,6 +50,10 @@ class DiagramScene(QGraphicsScene):
     @connection_mode.setter
     def connection_mode(self, value: bool) -> None:
         self.set_connection_mode(value)
+
+    def set_connection_type(self, connection_type: str) -> None:
+        """Define o tipo semântico da próxima conexão UML a ser criada."""
+        self.connection_type = connection_type
 
     def set_connection_mode(self, enabled: bool) -> None:
         """Ativa ou desativa o modo de conexão entre classes."""
@@ -158,7 +163,12 @@ class DiagramScene(QGraphicsScene):
                     for c in self.start_node.connections
                 )
                 if not already_connected:
-                    connection = DiagramConnectionItem(self.start_node, target_node)
+                    conn_type = self.connection_type or "Generalization"
+                    connection = DiagramConnectionItem(
+                        self.start_node,
+                        target_node,
+                        connection_type=conn_type,
+                    )
                     self.addItem(connection)
                     if win and hasattr(win, "statusbar") and hasattr(win, "i18n"):
                         win.statusbar.showMessage(

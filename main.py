@@ -34,12 +34,14 @@ from PyQt6.QtWidgets import (
     QGroupBox,
     QLineEdit,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPushButton,
     QSpinBox,
     QSplitter,
     QStatusBar,
     QToolBar,
+    QToolButton,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -47,12 +49,16 @@ from PyQt6.QtWidgets import (
 
 # Importações dos módulos gráficos e de componentes
 from uml_items import (
+    AnchorItem,
+    ConnectionAnchorItem,
+    ConnectionConfigDialog,
     DiagramConnectionItem,
     DiagramNodeItem,
     EditableTextItem,
     FloatingEditPanel,
     InlineActionPanel,
     UMLMemberItem,
+    WaypointItem,
     get_main_window,
 )
 from ui_components import (
@@ -63,13 +69,19 @@ from ui_components import (
 
 # Re-exportações para compatibilidade reversa com scripts e testes existentes
 __all__ = [
+    "get_resource_path",
+    "load_languages",
     "I18nManager",
+    "AnchorItem",
+    "ConnectionAnchorItem",
+    "ConnectionConfigDialog",
     "DiagramConnectionItem",
     "EditableTextItem",
     "InlineActionPanel",
     "FloatingEditPanel",
     "DiagramNodeItem",
     "UMLMemberItem",
+    "WaypointItem",
     "DiagramScene",
     "DiagramView",
     "MinimapView",
@@ -80,29 +92,291 @@ __all__ = [
 
 
 # ==============================================================================
-# 1. Gerenciador de Internacionalização (i18n)
+# 1. Utilitário de Caminho Base (PyInstaller) e Internacionalização (i18n)
 # ==============================================================================
+def get_base_path() -> str:
+    """
+    Deteta o caminho base do programa:
+    - Se compilado (frozen), retorna a pasta física do executável: os.path.dirname(sys.executable).
+    - Caso contrário (.py), retorna os.path.abspath(os.path.dirname(__file__)).
+    """
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return os.path.abspath(os.path.dirname(__file__))
+
+
+def get_resource_path(relative_path: str = "") -> str:
+    """
+    Retorna o caminho absoluto ao lado do executável (quando compilado com PyInstaller)
+    ou na pasta do script Python (em desenvolvimento).
+    """
+    base_path = get_base_path()
+    return os.path.join(base_path, relative_path) if relative_path else base_path
+
+
+DEFAULT_EN_TRANSLATIONS: Dict[str, str] = {
+    "app_title": "PyDiagram - UML & Diagram Modeler",
+    "menu_file": "&File",
+    "action_new": "&New Diagram",
+    "action_open": "&Open...",
+    "action_save": "&Save",
+    "action_export": "&Export as Image...",
+    "action_exit": "E&xit",
+    "menu_edit": "&Edit",
+    "action_undo": "&Undo",
+    "action_redo": "&Redo",
+    "action_delete": "&Delete Selected",
+    "menu_diagram": "&Diagram",
+    "menu_connections": "UML Connections",
+    "action_add_node": "Add &Node",
+    "action_clear": "&Clear All",
+    "menu_language": "&Language",
+    "lang_pt_br": "Português (pt-BR)",
+    "lang_en_us": "English (en-US)",
+    "menu_help": "&Help",
+    "action_about": "&About PyDiagram",
+    "toolbar_tools": "Tools",
+    "toolbar_add_node": "New Node",
+    "toolbar_connect": "Connect",
+    "toolbar_delete": "Delete",
+    "explorer_title": "Model Explorer",
+    "properties_title": "Properties",
+    "status_ready": "Ready",
+    "status_node_added": "Node added to diagram.",
+    "status_nodes_connected": "Nodes connected successfully.",
+    "status_select_two_nodes": "Select exactly 2 nodes to connect.",
+    "status_deleted": "Item(s) deleted.",
+    "export_dialog_title": "Export as Image",
+    "export_filter": "PNG Images (*.png);;JPEG Images (*.jpg *.jpeg)",
+    "status_export_success": "Diagram successfully exported: {path}",
+    "status_export_empty": "Diagram is empty. Nothing to export.",
+    "export_error_title": "Export Error",
+    "export_error_msg": "Could not save the image file.",
+    "about_title": "About PyDiagram",
+    "about_text": "PyDiagram - Open-Source Diagram Modeler inspired by StarUML.\nBuilt with Python e PyQt6.",
+    "action_new_class": "New Class",
+    "action_toggle_sidebar": "Show Explorer / Properties",
+    "action_connection_mode": "Connect Classes",
+    "status_connection_mode_active": "Connection Mode active: Click and drag from one class to another.",
+    "status_connection_mode_inactive": "Normal selection mode active.",
+    "minimap_title": "Minimap",
+    "action_save_project": "&Save Project...",
+    "action_open_project": "&Open Project...",
+}
+
+DEFAULT_PT_BR_TRANSLATIONS: Dict[str, str] = {
+    "app_title": "PyDiagram - Modelador UML & Diagramas",
+    "menu_file": "&Arquivo",
+    "action_new": "&Novo Diagrama",
+    "action_open": "&Abrir...",
+    "action_save": "&Salvar",
+    "action_export": "&Exportar como Imagem...",
+    "action_exit": "&Sair",
+    "menu_edit": "&Editar",
+    "action_undo": "&Desfazer",
+    "action_redo": "&Refazer",
+    "action_delete": "&Excluir Selecionado",
+    "menu_diagram": "&Diagrama",
+    "menu_connections": "Conexões UML",
+    "action_add_node": "Adicionar &Nó",
+    "action_clear": "&Limpar Tudo",
+    "menu_language": "&Idioma",
+    "menu_help": "Aj&uda",
+    "action_about": "&Sobre o PyDiagram",
+    "toolbar_tools": "Ferramentas",
+    "toolbar_add_node": "Novo Nó",
+    "toolbar_connect": "Conectar",
+    "toolbar_delete": "Excluir",
+    "explorer_title": "Explorador de Modelos",
+    "properties_title": "Propriedades",
+    "status_ready": "Pronto",
+    "status_node_added": "Nó adicionado ao diagrama.",
+    "status_nodes_connected": "Nós conectados com sucesso.",
+    "status_select_two_nodes": "Selecione exatamente 2 nós para conectar.",
+    "status_deleted": "Item(ns) excluído(s).",
+    "export_dialog_title": "Exportar como Imagem",
+    "export_filter": "Imagens PNG (*.png);;Imagens JPEG (*.jpg *.jpeg)",
+    "status_export_success": "Diagrama exportado com sucesso: {path}",
+    "status_export_empty": "O diagrama está vazio. Nenhum item para exportar.",
+    "export_error_title": "Erro ao Exportar",
+    "export_error_msg": "Não foi possível salvar o arquivo de imagem.",
+    "about_title": "Sobre o PyDiagram",
+    "about_text": "PyDiagram - Modelador Open-Source inspirado no StarUML.\nConstruído com Python e PyQt6.",
+    "action_new_class": "Nova Classe",
+    "action_toggle_sidebar": "Exibir Explorador / Propriedades",
+    "action_connection_mode": "Conectar Classes",
+    "status_connection_mode_active": "Modo de Conexão ativo: Clique em uma classe e arraste até outra.",
+    "status_connection_mode_inactive": "Modo normal de seleção ativo.",
+    "minimap_title": "Minimapa",
+    "action_save_project": "&Salvar Projeto...",
+    "action_open_project": "&Abrir Projeto...",
+}
+
+
+def ensure_locales_directory(locales_dir: Optional[str | Path] = None) -> Path:
+    """
+    Garante que a pasta `locales` existe ao lado do executável (ou script .py)
+    usando os.path.join(base_path, 'locales') e cria `_template.json` dentro dela.
+    """
+    if locales_dir is not None:
+        locales_path = str(locales_dir)
+    else:
+        base_path = (
+            os.path.dirname(sys.executable)
+            if getattr(sys, "frozen", False)
+            else os.path.abspath(os.path.dirname(__file__))
+        )
+        locales_path = os.path.join(base_path, "locales")
+
+    target_path = Path(locales_path)
+    if not os.path.exists(locales_path):
+        try:
+            os.makedirs(locales_path, exist_ok=True)
+        except OSError as exc:
+            print(f"[i18n] Aviso ao criar diretório '{locales_path}': {exc}", file=sys.stderr)
+            return target_path
+
+    template_file = os.path.join(locales_path, "_template.json")
+    json_files = [
+        f for f in os.listdir(locales_path) if f.lower().endswith(".json")
+    ] if os.path.exists(locales_path) else []
+
+    if not os.path.exists(template_file):
+        template_payload = {
+            "_enabled": False,
+            "_lang_name": "Template Language (xx-XX)",
+            "translations": dict(DEFAULT_EN_TRANSLATIONS),
+        }
+        try:
+            with open(template_file, "w", encoding="utf-8") as f:
+                json.dump(template_payload, f, indent=2, ensure_ascii=False)
+        except OSError as exc:
+            print(f"[i18n] Aviso ao criar '_template.json' em '{locales_path}': {exc}", file=sys.stderr)
+
+    # Se não houver outros ficheiros de idioma ativos além do _template.json, cria os idiomas padrão
+    non_template_files = [f for f in json_files if f != "_template.json"]
+    if not non_template_files:
+        en_payload = {
+            "_enabled": True,
+            "_lang_name": "English (en-US)",
+            "translations": dict(DEFAULT_EN_TRANSLATIONS),
+        }
+        pt_payload = {
+            "_enabled": True,
+            "_lang_name": "Português (pt-BR)",
+            "translations": dict(DEFAULT_PT_BR_TRANSLATIONS),
+        }
+        try:
+            en_path = os.path.join(locales_path, "en-US.json")
+            if not os.path.exists(en_path):
+                with open(en_path, "w", encoding="utf-8") as f:
+                    json.dump(en_payload, f, indent=2, ensure_ascii=False)
+            pt_path = os.path.join(locales_path, "pt-BR.json")
+            if not os.path.exists(pt_path):
+                with open(pt_path, "w", encoding="utf-8") as f:
+                    json.dump(pt_payload, f, indent=2, ensure_ascii=False)
+        except OSError as exc:
+            print(f"[i18n] Aviso ao criar ficheiros padrão em '{locales_path}': {exc}", file=sys.stderr)
+
+    return target_path
+
+
+def load_languages(locales_dir: Optional[str | Path] = None) -> Dict[str, Dict[str, Any]]:
+    """
+    Itera por todos os ficheiros .json dentro da pasta `locales` (em os.path.join(base_path, 'locales'))
+    de forma segura (try-except). Apenas carrega idiomas onde `"_enabled"` existe e é `True`.
+    Retorna dicionário: {lang_code: {"_lang_name": str, "translations": Dict[str, str]}}.
+    """
+    target_path = ensure_locales_directory(locales_dir)
+    locales_path = str(target_path)
+    loaded: Dict[str, Dict[str, Any]] = {}
+
+    if not os.path.exists(locales_path):
+        return loaded
+
+    for filename in sorted(os.listdir(locales_path)):
+        if not filename.lower().endswith(".json"):
+            continue
+        lang_code = os.path.splitext(filename)[0]
+        resolved_file = os.path.join(locales_path, filename)
+        try:
+            if os.path.getsize(resolved_file) == 0:
+                print(f"[i18n] Aviso: ficheiro de idioma vazio ignorado: '{resolved_file}'", file=sys.stderr)
+                continue
+
+            with open(resolved_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            if not isinstance(data, dict):
+                print(f"[i18n] Aviso: formato inválido em '{resolved_file}' (ignorado).", file=sys.stderr)
+                continue
+
+            if data.get("_enabled") is not True:
+                print(
+                    f"[i18n] Aviso: idioma '{lang_code}' ignorado ('_enabled' ausente ou false).",
+                    file=sys.stderr,
+                )
+                continue
+
+            lang_name = str(data.get("_lang_name") or lang_code).strip()
+            translations = data.get("translations")
+            if not isinstance(translations, dict):
+                # Fallback caso as chaves estejam no nível raiz junto com _enabled
+                translations = {
+                    str(k): str(v)
+                    for k, v in data.items()
+                    if not str(k).startswith("_") and isinstance(v, str)
+                }
+
+            loaded[lang_code] = {
+                "_enabled": True,
+                "_lang_name": lang_name,
+                "translations": {str(k): str(v) for k, v in translations.items()},
+            }
+        except Exception as exc:
+            print(
+                f"[i18n] Aviso: falha ao ler ficheiro de idioma '{resolved_file}' (ignorado): {exc}",
+                file=sys.stderr,
+            )
+
+    return loaded
+
+
 class I18nManager:
-    """Gerencia traduções e troca de idioma dinamicamente a partir de arquivos JSON."""
+    """Gerencia traduções e troca de idioma dinamicamente a partir da pasta locales."""
 
-    def __init__(self, locales_dir: Path, default_lang: str = "pt-BR") -> None:
-        self.locales_dir = locales_dir
+    def __init__(
+        self, locales_dir: Optional[Path | str] = None, default_lang: str = "pt-BR"
+    ) -> None:
+        if locales_dir is not None:
+            self.locales_dir = Path(locales_dir)
+        else:
+            base_path = (
+                os.path.dirname(sys.executable)
+                if getattr(sys, "frozen", False)
+                else os.path.abspath(os.path.dirname(__file__))
+            )
+            self.locales_dir = Path(os.path.join(base_path, "locales"))
+        self.languages: Dict[str, Dict[str, Any]] = {}
         self.translations: Dict[str, Dict[str, str]] = {}
+        self.language_names: Dict[str, str] = {}
         self.current_lang = default_lang
-        self.load_locales()
+        self.load_languages()
 
-    def load_locales(self) -> None:
-        """Carrega todos os arquivos .json da pasta locales."""
-        if not self.locales_dir.exists():
-            return
+    def load_languages(self) -> Dict[str, Dict[str, Any]]:
+        """Carrega apenas os idiomas habilitados (_enabled: true) da pasta locales."""
+        self.languages = load_languages(self.locales_dir)
+        self.translations = {
+            code: info["translations"] for code, info in self.languages.items()
+        }
+        self.language_names = {
+            code: info["_lang_name"] for code, info in self.languages.items()
+        }
+        if self.current_lang not in self.translations and self.translations:
+            self.current_lang = next(iter(self.translations.keys()))
+        return self.languages
 
-        for file_path in self.locales_dir.glob("*.json"):
-            lang_code = file_path.stem
-            try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    self.translations[lang_code] = json.load(f)
-            except Exception as exc:
-                print(f"[i18n] Erro ao carregar '{file_path}': {exc}", file=sys.stderr)
+    load_locales = load_languages
 
     def t(self, key: str, fallback: str = "") -> str:
         """Retorna o texto traduzido para a chave informada."""
@@ -127,8 +401,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.resize(1100, 750)
 
-        # Internacionalização
-        locales_dir = Path(__file__).resolve().parent / "locales"
+        # Internacionalização usando get_resource_path (compatível com PyInstaller)
+        locales_dir = Path(get_resource_path("locales"))
         self.i18n = I18nManager(locales_dir, default_lang="pt-BR")
 
         # Cena e Canvas com otimizações ativas
@@ -140,6 +414,8 @@ class MainWindow(QMainWindow):
         self._is_applying_properties: bool = False
         self.current_property_item: Optional[Any] = None
         self.current_prop_color: QColor = QColor(51, 65, 85)
+        self.current_connection_type: str = "Generalization"
+        self.scene.connection_type = self.current_connection_type
         self.node_counter: int = 1
 
         # Construção da Interface
@@ -216,12 +492,26 @@ class MainWindow(QMainWindow):
         self.prop_color_btn = QPushButton("Mudar Cor", self.prop_group)
         self._update_color_btn_style(self.current_prop_color)
 
+        self.connection_type_combo = QComboBox(self.prop_group)
+        self.connection_type_combo.addItems([
+            "Association",
+            "Directed Association",
+            "Aggregation",
+            "Composition",
+            "Dependency",
+            "Generalization",
+            "Realization",
+            "Interface Realization",
+        ])
+        self.connection_type_combo.setCurrentText(self.current_connection_type)
+
         self.prop_layout.addRow("name", self.prop_name_edit)
         self.prop_layout.addRow("visibility", self.prop_visibility_combo)
         self.prop_layout.addRow("isAbstract", self.prop_abstract_check)
         self.prop_layout.addRow("font", self.prop_font_combo)
         self.prop_layout.addRow("size", self.prop_size_spin)
         self.prop_layout.addRow("color", self.prop_color_btn)
+        self.prop_layout.addRow("connectionType", self.connection_type_combo)
 
         # Conecta sinais do formulário apenas uma vez
         self.prop_name_edit.textEdited.connect(self.apply_properties)
@@ -230,6 +520,7 @@ class MainWindow(QMainWindow):
         self.prop_font_combo.currentFontChanged.connect(self.apply_properties)
         self.prop_size_spin.valueChanged.connect(self.apply_properties)
         self.prop_color_btn.clicked.connect(self.choose_property_color)
+        self.connection_type_combo.currentTextChanged.connect(self.on_connection_type_changed)
 
         # 3. Minimapa com atualização debounced (evita lag em mudanças rápidas)
         self.minimap_group = QGroupBox(self.i18n.t("minimap_title", "Minimapa"), self.sidebar_splitter)
@@ -291,12 +582,72 @@ class MainWindow(QMainWindow):
             f"background-color: {hex_color}; color: {text_color}; font-weight: bold; padding: 4px; border-radius: 4px;"
         )
 
+    def update_connection_button_text(self) -> None:
+        """Atualiza o texto do botão principal para exibir a conexão selecionada."""
+        prefix = self.i18n.t("toolbar_connect", "Conectar")
+        label = f"{prefix}: {self.current_connection_type}"
+        if hasattr(self, "connection_tool_button") and self.connection_tool_button:
+            self.connection_tool_button.setText(label)
+        if hasattr(self, "action_connection_mode") and self.action_connection_mode:
+            self.action_connection_mode.setText(label)
+
+    def on_connection_action_triggered(self, action_name: str) -> None:
+        """
+        Ativa o modo de conexão e define automaticamente o connection_type da cena
+        com base na ação escolhida no menu 'Conexões UML'.
+        """
+        self.current_connection_type = action_name
+        self.scene.connection_type = action_name
+
+        if hasattr(self, "connection_type_combo"):
+            self.connection_type_combo.blockSignals(True)
+            idx = self.connection_type_combo.findText(action_name)
+            if idx >= 0:
+                self.connection_type_combo.setCurrentIndex(idx)
+            self.connection_type_combo.blockSignals(False)
+
+        if hasattr(self, "connection_actions") and action_name in self.connection_actions:
+            self.connection_actions[action_name].setChecked(True)
+
+        self.update_connection_button_text()
+
+        if isinstance(self.current_property_item, DiagramConnectionItem):
+            self.current_property_item.set_connection_type(action_name)
+
+        self.scene.set_connection_mode(True)
+        if hasattr(self, "action_connection_mode"):
+            self.action_connection_mode.setChecked(True)
+        if hasattr(self, "connection_tool_button"):
+            self.connection_tool_button.setChecked(True)
+
+        if hasattr(self, "statusbar") and self.statusbar:
+            self.statusbar.showMessage(
+                f"Modo de Conexão ({action_name}) ativo: Clique em uma classe e arraste até outra.",
+                5000,
+            )
+
+    def on_connection_type_changed(self, text: str) -> None:
+        """Sincroniza o tipo de conexão selecionado com a cena, menu e conexões ativas."""
+        self.current_connection_type = text
+        self.scene.connection_type = text
+        if hasattr(self, "connection_actions") and text in self.connection_actions:
+            self.connection_actions[text].setChecked(True)
+        self.update_connection_button_text()
+
+        if getattr(self, "_is_populating_properties", False):
+            return
+        if isinstance(self.current_property_item, DiagramConnectionItem):
+            self.current_property_item.set_connection_type(text)
+
     def populate_properties(self, selected_item: Optional[Any]) -> None:
         """Preenche o formulário de propriedades com base no item ativo."""
         self._is_populating_properties = True
         try:
             self.current_property_item = selected_item
-            if selected_item is None:
+            if hasattr(self, "connection_type_combo"):
+                self.connection_type_combo.setEnabled(True)
+
+            if selected_item is None or isinstance(selected_item, DiagramConnectionItem):
                 self.prop_name_edit.setEnabled(False)
                 self.prop_visibility_combo.setEnabled(False)
                 self.prop_abstract_check.setEnabled(False)
@@ -306,6 +657,10 @@ class MainWindow(QMainWindow):
                 self.prop_name_edit.clear()
                 self.prop_visibility_combo.setCurrentIndex(3)
                 self.prop_abstract_check.setChecked(False)
+                if isinstance(selected_item, DiagramConnectionItem) and hasattr(self, "connection_type_combo"):
+                    idx = self.connection_type_combo.findText(selected_item.connection_type)
+                    if idx >= 0:
+                        self.connection_type_combo.setCurrentIndex(idx)
                 return
 
             self.prop_name_edit.setEnabled(True)
@@ -449,13 +804,20 @@ class MainWindow(QMainWindow):
 
     def on_scene_selection_changed(self) -> None:
         """Atualiza painel de propriedades quando a seleção do canvas muda."""
+        selected_items = self.scene.selectedItems()
         selected_nodes = [
-            it for it in self.scene.selectedItems() if isinstance(it, DiagramNodeItem)
+            it for it in selected_items if isinstance(it, DiagramNodeItem)
+        ]
+        selected_conns = [
+            it for it in selected_items if isinstance(it, DiagramConnectionItem)
         ]
         if selected_nodes:
             node = selected_nodes[0]
             self.populate_properties(node)
             self.select_in_tree(node)
+        elif selected_conns:
+            self.populate_properties(selected_conns[0])
+            self.select_in_tree(None)
         else:
             if not isinstance(self.current_property_item, EditableTextItem):
                 self.populate_properties(None)
@@ -600,34 +962,60 @@ class MainWindow(QMainWindow):
         self.action_connection_mode.setCheckable(True)
         self.action_connection_mode.setChecked(False)
         self.action_connection_mode.toggled.connect(self.on_connection_mode_toggled)
-        self.scene.connection_mode_changed.connect(self.action_connection_mode.setChecked)
+        self.scene.connection_mode_changed.connect(self._on_scene_connection_mode_changed)
 
-        self.action_lang_pt = QAction("Português (pt-BR)", self)
-        self.action_lang_pt.setCheckable(True)
-        self.action_lang_pt.setChecked(True)
-        self.action_lang_pt.triggered.connect(lambda: self.switch_language("pt-BR"))
+        # Menu dedicado de Conexões UML e respectivas QActions
+        self.connection_menu = QMenu("Conexões UML", self)
+        self.connection_action_group = QActionGroup(self)
+        self.connection_action_group.setExclusive(True)
+        self.connection_actions: Dict[str, QAction] = {}
 
-        self.action_lang_en = QAction("English (en-US)", self)
-        self.action_lang_en.setCheckable(True)
-        self.action_lang_en.setChecked(False)
-        self.action_lang_en.triggered.connect(lambda: self.switch_language("en-US"))
+        uml_connection_types = [
+            "Association",
+            "Directed Association",
+            "Aggregation",
+            "Composition",
+            "Dependency",
+            "Generalization",
+            "Realization",
+            "Interface Realization",
+        ]
+        for conn_type in uml_connection_types:
+            act = QAction(conn_type, self)
+            act.setCheckable(True)
+            if conn_type == self.current_connection_type:
+                act.setChecked(True)
+            act.triggered.connect(
+                lambda checked=False, ct=conn_type: self.on_connection_action_triggered(ct)
+            )
+            self.connection_action_group.addAction(act)
+            self.connection_menu.addAction(act)
+            self.connection_actions[conn_type] = act
 
         self.lang_action_group = QActionGroup(self)
-        self.lang_action_group.addAction(self.action_lang_pt)
-        self.lang_action_group.addAction(self.action_lang_en)
         self.lang_action_group.setExclusive(True)
+        self.language_actions: Dict[str, QAction] = {}
 
         self.action_about = QAction(self)
         self.action_about.triggered.connect(self.on_show_about)
 
+    def _on_scene_connection_mode_changed(self, enabled: bool) -> None:
+        """Sincroniza o estado visual dos controles quando o modo de conexão muda na cena."""
+        if hasattr(self, "action_connection_mode"):
+            self.action_connection_mode.blockSignals(True)
+            self.action_connection_mode.setChecked(enabled)
+            self.action_connection_mode.blockSignals(False)
+        if hasattr(self, "connection_tool_button") and self.connection_tool_button:
+            self.connection_tool_button.setChecked(enabled)
+
     def on_connection_mode_toggled(self, checked: bool) -> None:
+        self.scene.connection_type = self.current_connection_type
         self.scene.connection_mode = checked
+        if hasattr(self, "connection_tool_button") and self.connection_tool_button:
+            self.connection_tool_button.setChecked(checked)
         if checked:
             self.statusbar.showMessage(
-                self.i18n.t(
-                    "status_connection_mode_active",
-                    "Modo de Conexão ativo: Clique em uma classe e arraste até outra.",
-                ),
+                f"Modo de Conexão ({self.current_connection_type}) ativo: Clique em uma classe e arraste até outra.",
                 5000,
             )
         else:
@@ -654,20 +1042,59 @@ class MainWindow(QMainWindow):
 
         self.menu_diagram = menubar.addMenu("")
         self.menu_diagram.addAction(self.action_add_node)
-        self.menu_diagram.addAction(self.action_connection_mode)
+        self.menu_diagram.addMenu(self.connection_menu)
         if hasattr(self, "sidebar_dock"):
             self.menu_diagram.addSeparator()
             self.menu_diagram.addAction(self.sidebar_dock.toggleViewAction())
 
+        # Menu dedicado "Conexões UML" na barra de menus principal (MenuBar)
+        self.menu_connections = self.connection_menu
+        menubar.addMenu(self.connection_menu)
+
         self.menu_language = menubar.addMenu("")
-        self.menu_language.addAction(self.action_lang_pt)
-        self.menu_language.addAction(self.action_lang_en)
+        self.populate_language_menu()
 
         self.menu_help = menubar.addMenu("")
         self.menu_help.addAction(self.action_about)
 
+    def load_languages(self) -> Dict[str, Dict[str, Any]]:
+        """Recarrega os idiomas válidos da pasta locales e reconstrói o menu Idioma."""
+        langs = self.i18n.load_languages()
+        if hasattr(self, "menu_language") and self.menu_language is not None:
+            self.populate_language_menu()
+        return langs
+
+    def populate_language_menu(self) -> None:
+        """
+        Limpa o menu 'Idioma' e recria dinamicamente as opções (QAction)
+        lendo as chaves '_lang_name' dos ficheiros JSON validados (_enabled: true).
+        """
+        self.menu_language.clear()
+        self.lang_action_group = QActionGroup(self)
+        self.lang_action_group.setExclusive(True)
+        self.language_actions.clear()
+
+        for lang_code, lang_info in self.i18n.languages.items():
+            lang_name = str(lang_info.get("_lang_name") or lang_code)
+            action = QAction(lang_name, self)
+            action.setCheckable(True)
+            action.setData(lang_code)
+            if lang_code == self.i18n.current_lang:
+                action.setChecked(True)
+            action.triggered.connect(
+                lambda checked=False, lc=lang_code: self.switch_language(lc)
+            )
+            self.lang_action_group.addAction(action)
+            self.menu_language.addAction(action)
+            self.language_actions[lang_code] = action
+
+        if "pt-BR" in self.language_actions:
+            self.action_lang_pt = self.language_actions["pt-BR"]
+        if "en-US" in self.language_actions:
+            self.action_lang_en = self.language_actions["en-US"]
+
     def create_toolbar(self) -> None:
-        """Cria a barra de ferramentas principal."""
+        """Cria a barra de ferramentas principal com QToolButton suspenso para Conexões UML."""
         self.toolbar = QToolBar(self)
         self.toolbar.setMovable(False)
         self.addToolBar(self.toolbar)
@@ -676,7 +1103,16 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(self.action_save_project)
         self.toolbar.addSeparator()
         self.toolbar.addAction(self.action_add_node)
-        self.toolbar.addAction(self.action_connection_mode)
+
+        self.connection_tool_button = QToolButton(self)
+        self.connection_tool_button.setMenu(self.connection_menu)
+        self.connection_tool_button.setPopupMode(
+            QToolButton.ToolButtonPopupMode.InstantPopup
+        )
+        self.connection_tool_button.setCheckable(True)
+        self.connection_tool_button.setText(f"Conectar: {self.current_connection_type}")
+        self.toolbar.addWidget(self.connection_tool_button)
+
         self.toolbar.addSeparator()
         self.toolbar.addAction(self.action_export)
         self.toolbar.addAction(self.action_delete)
@@ -687,10 +1123,12 @@ class MainWindow(QMainWindow):
 
     def switch_language(self, lang_code: str) -> None:
         if self.i18n.set_language(lang_code):
+            if hasattr(self, "language_actions") and lang_code in self.language_actions:
+                self.language_actions[lang_code].setChecked(True)
             self.retranslate_ui()
 
     def retranslate_ui(self) -> None:
-        """Aplica os textos traduzidos à janela e seus componentes."""
+        """Aplica os textos traduzidos à janela e seus componentes em tempo real."""
         self.setWindowTitle(self.i18n.t("app_title", "PyDiagram"))
 
         self.menu_file.setTitle(self.i18n.t("menu_file", "&Arquivo"))
@@ -705,7 +1143,9 @@ class MainWindow(QMainWindow):
 
         self.menu_diagram.setTitle(self.i18n.t("menu_diagram", "&Diagrama"))
         self.action_add_node.setText(self.i18n.t("action_add_node", "Adicionar &Nó"))
-        self.action_connection_mode.setText(self.i18n.t("action_connection_mode", "Conectar Classes"))
+        if hasattr(self, "connection_menu"):
+            self.connection_menu.setTitle(self.i18n.t("menu_connections", "Conexões UML"))
+        self.update_connection_button_text()
 
         self.menu_language.setTitle(self.i18n.t("menu_language", "&Idioma"))
         self.menu_help.setTitle(self.i18n.t("menu_help", "Aj&uda"))
@@ -720,10 +1160,14 @@ class MainWindow(QMainWindow):
             )
         if hasattr(self, "tree_widget"):
             self.tree_widget.setHeaderLabels([self.i18n.t("explorer_title", "Explorador de Modelos")])
+        if hasattr(self, "prop_group"):
+            self.prop_group.setTitle(self.i18n.t("properties_title", "Properties"))
         if hasattr(self, "minimap_group"):
             self.minimap_group.setTitle(self.i18n.t("minimap_title", "Minimapa"))
 
         self.statusbar.showMessage(self.i18n.t("status_ready", "Pronto"), 2000)
+
+    retranslateUi = retranslate_ui
 
     def create_class_at(self, scene_pos: QPointF, title: str = "NovaClasse") -> DiagramNodeItem:
         """Cria e insere um nó UML em coordenadas específicas."""
@@ -784,6 +1228,8 @@ class MainWindow(QMainWindow):
                     item.scene().removeItem(item)
                 elif self.scene == item.scene():
                     self.scene.removeItem(item)
+            elif isinstance(item, WaypointItem):
+                item.remove_self()
 
         self.update_tree()
         self.populate_properties(None)
@@ -911,9 +1357,10 @@ class MainWindow(QMainWindow):
             file_path += ".json"
 
         nodes = [it for it in self.scene.items() if isinstance(it, DiagramNodeItem)]
+        anchors = [it for it in self.scene.items() if isinstance(it, AnchorItem)]
         connections = [it for it in self.scene.items() if isinstance(it, DiagramConnectionItem)]
 
-        node_id_map: Dict[DiagramNodeItem, str] = {}
+        node_id_map: Dict[Any, str] = {}
         nodes_data = []
         for idx, node in enumerate(nodes):
             node_id = f"node_{idx}"
@@ -955,19 +1402,57 @@ class MainWindow(QMainWindow):
                 "methods": methods_data,
             })
 
+        anchor_id_map: Dict[AnchorItem, str] = {}
+        for idx, anchor in enumerate(anchors):
+            anchor_id = f"anchor_{idx}"
+            anchor_id_map[anchor] = anchor_id
+            node_id_map[anchor] = anchor_id
+
+        conn_id_map: Dict[DiagramConnectionItem, str] = {}
+        for idx, conn in enumerate(connections):
+            conn_id_map[conn] = f"conn_{idx}"
+
+        anchors_data = []
+        for anchor, anchor_id in anchor_id_map.items():
+            parent_conn_id = (
+                conn_id_map.get(anchor.parent_connection)
+                if anchor.parent_connection in conn_id_map
+                else None
+            )
+            anchors_data.append({
+                "id": anchor_id,
+                "parent_connection_id": parent_conn_id,
+                "x": anchor.pos().x(),
+                "y": anchor.pos().y(),
+            })
+
         connections_data = []
         for conn in connections:
             if conn.source_node in node_id_map and conn.target_node in node_id_map:
-                connections_data.append({
+                conn_type = getattr(conn, "connection_type", "Association")
+                waypoints_list = [
+                    {"x": float(wp.x()), "y": float(wp.y())}
+                    for wp in getattr(conn, "waypoints", [])
+                ]
+                conn_entry: Dict[str, Any] = {
+                    "id": conn_id_map[conn],
                     "source_id": node_id_map[conn.source_node],
                     "target_id": node_id_map[conn.target_node],
-                    "type": "inheritance",
-                })
+                    "connection_type": conn_type,
+                    "type": conn_type,
+                    "end1_props": dict(getattr(conn, "end1_props", {})),
+                    "end2_props": dict(getattr(conn, "end2_props", {})),
+                    "waypoints": waypoints_list,
+                }
+                if conn.anchor_item and conn.anchor_item in anchor_id_map:
+                    conn_entry["anchor_id"] = anchor_id_map[conn.anchor_item]
+                connections_data.append(conn_entry)
 
         project_data = {
             "version": "1.0",
             "generator": "PyDiagram",
             "nodes": nodes_data,
+            "anchors": anchors_data,
             "connections": connections_data,
         }
 
@@ -1100,14 +1585,96 @@ class MainWindow(QMainWindow):
             self.scene.addItem(node)
             created_nodes[node_id] = node
 
-        for c_data in connections_data:
+        anchors_data = project_data.get("anchors", [])
+        created_anchors: Dict[str, AnchorItem] = {}
+        created_connections: Dict[str, DiagramConnectionItem] = {}
+        deferred_connections: List[Dict[str, Any]] = []
+
+        # 1ª passagem de conexões: cria conexões entre classes (DiagramNodeItem)
+        for idx, c_data in enumerate(connections_data):
             src_id = c_data.get("source_id")
             tgt_id = c_data.get("target_id")
-            src_node = created_nodes.get(src_id)
-            tgt_node = created_nodes.get(tgt_id)
-            if src_node and tgt_node:
-                conn = DiagramConnectionItem(src_node, tgt_node)
+            if src_id in created_nodes and tgt_id in created_nodes:
+                conn_id = c_data.get("id", f"conn_{idx}")
+                conn_type = c_data.get("connection_type") or c_data.get("type", "Association")
+                if conn_type == "inheritance":
+                    conn_type = "Generalization"
+                end1_props = c_data.get("end1_props")
+                end2_props = c_data.get("end2_props")
+                src_node = created_nodes[src_id]
+                tgt_node = created_nodes[tgt_id]
+                conn = DiagramConnectionItem(
+                    src_node,
+                    tgt_node,
+                    connection_type=conn_type,
+                    end1_props=end1_props if isinstance(end1_props, dict) else None,
+                    end2_props=end2_props if isinstance(end2_props, dict) else None,
+                )
                 self.scene.addItem(conn)
+                for wp_data in c_data.get("waypoints", []):
+                    if isinstance(wp_data, dict) and "x" in wp_data and "y" in wp_data:
+                        conn.add_waypoint(
+                            QPointF(float(wp_data["x"]), float(wp_data["y"])),
+                            sort_by_projection=False,
+                        )
+                created_connections[conn_id] = conn
+
+                anchor_id = c_data.get("anchor_id")
+                if anchor_id:
+                    anchor = conn.ensure_anchor_item()
+                    created_anchors[anchor_id] = anchor
+            else:
+                deferred_connections.append(c_data)
+
+        # Garante que quaisquer âncoras listadas em "anchors" sejam recriadas
+        for a_data in anchors_data:
+            a_id = a_data.get("id")
+            parent_conn_id = a_data.get("parent_connection_id")
+            if a_id and a_id not in created_anchors:
+                parent_conn = created_connections.get(parent_conn_id) if parent_conn_id else None
+                if parent_conn is not None:
+                    anchor = parent_conn.ensure_anchor_item()
+                else:
+                    anchor = AnchorItem(
+                        float(a_data.get("x", 0.0)),
+                        float(a_data.get("y", 0.0)),
+                    )
+                    self.scene.addItem(anchor)
+                created_anchors[a_id] = anchor
+
+        # 2ª passagem de conexões: cria conexões ligadas a âncoras (Association Class)
+        all_endpoints: Dict[str, Any] = {**created_nodes, **created_anchors}
+        for c_data in deferred_connections:
+            src_id = c_data.get("source_id")
+            tgt_id = c_data.get("target_id")
+            conn_type = c_data.get("connection_type") or c_data.get("type", "Association Class")
+            end1_props = c_data.get("end1_props")
+            end2_props = c_data.get("end2_props")
+            src_obj = all_endpoints.get(src_id)
+            tgt_obj = all_endpoints.get(tgt_id)
+            if src_obj and tgt_obj:
+                conn = DiagramConnectionItem(
+                    src_obj,
+                    tgt_obj,
+                    connection_type=conn_type,
+                    end1_props=end1_props if isinstance(end1_props, dict) else None,
+                    end2_props=end2_props if isinstance(end2_props, dict) else None,
+                )
+                self.scene.addItem(conn)
+                for wp_data in c_data.get("waypoints", []):
+                    if isinstance(wp_data, dict) and "x" in wp_data and "y" in wp_data:
+                        conn.add_waypoint(
+                            QPointF(float(wp_data["x"]), float(wp_data["y"])),
+                            sort_by_projection=False,
+                        )
+                if isinstance(tgt_obj, AnchorItem) and tgt_obj.parent_connection:
+                    tgt_obj.parent_connection.association_class_link = conn
+                    if isinstance(src_obj, DiagramNodeItem):
+                        tgt_obj.parent_connection.association_class_node = src_obj
+                elif isinstance(src_obj, AnchorItem) and src_obj.parent_connection:
+                    src_obj.parent_connection.association_class_link = conn
+                    if isinstance(tgt_obj, DiagramNodeItem):
+                        src_obj.parent_connection.association_class_node = tgt_obj
 
         # Recalcula o layout de todos os nós reconstruídos
         for node in created_nodes.values():

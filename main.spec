@@ -5,7 +5,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('locales', 'locales')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -22,7 +22,8 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='main',
+    name='PyDiagram_v1.1',
+    icon='icone.ico',  # <-- Adicione esta linha exata aqui
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

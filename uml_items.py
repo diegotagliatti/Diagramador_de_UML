@@ -8,7 +8,7 @@ from __future__ import annotations
 import math
 import re
 import unicodedata
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from PyQt6.QtCore import QLineF, QPointF, QRectF, Qt
 from PyQt6.QtGui import (
@@ -17,11 +17,16 @@ from PyQt6.QtGui import (
     QFont,
     QPainter,
     QPainterPath,
+    QPainterPathStroker,
     QPen,
     QPolygonF,
     QTextCursor,
 )
 from PyQt6.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
     QGraphicsItem,
     QGraphicsLineItem,
     QGraphicsProxyWidget,
@@ -29,9 +34,12 @@ from PyQt6.QtWidgets import (
     QGraphicsSceneContextMenuEvent,
     QGraphicsSceneMouseEvent,
     QGraphicsTextItem,
+    QGroupBox,
     QHBoxLayout,
+    QLineEdit,
     QMenu,
     QPushButton,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -49,42 +57,367 @@ def get_main_window(item: Optional[QGraphicsItem]) -> Optional[Any]:
     return None
 
 
-class DiagramConnectionItem(QGraphicsLineItem):
+class AnchorItem(QGraphicsRectItem):
     """
-    Representa uma linha de conexão de herança UML (Generalização).
-    - Conecta as bordas dos nós (sceneBoundingRect) utilizando interseções com QLineF.
-    - O nó de destino (target_node) é a classe Pai/Superclasse.
-    - Desenha uma seta com um triângulo fechado branco na extremidade que toca no nó Pai.
+    Nó de ancoragem posicionado no ponto médio (midpoint) de uma conexão UML
+    para ligar uma Classe Associativa (Association Class).
     """
 
     def __init__(
         self,
-        source_node: DiagramNodeItem,
-        target_node: DiagramNodeItem,
+        x: float = 0.0,
+        y: float = 0.0,
+        parent_connection: Optional[DiagramConnectionItem] = None,
         parent: Optional[QGraphicsItem] = None,
     ) -> None:
+        super().__init__(-4.0, -4.0, 8.0, 8.0, parent)
+        self.parent_connection: Optional[DiagramConnectionItem] = parent_connection
+        self.connections: List[DiagramConnectionItem] = []
+        self.setPos(x, y)
+        self.setZValue(0)
+
+    def add_connection(self, connection: DiagramConnectionItem) -> None:
+        if connection not in self.connections:
+            self.connections.append(connection)
+
+    def remove_all_connections(self) -> None:
+        scene = self.scene()
+        for conn in list(self.connections):
+            conn.detach()
+            if scene and conn.scene() == scene:
+                scene.removeItem(conn)
+            elif conn.scene():
+                conn.scene().removeItem(conn)
+        self.connections.clear()
+
+    def paint(
+        self, painter: QPainter, option: Any, widget: Optional[QWidget] = None
+    ) -> None:
+        """Desenha um pequeno ponto discreto no midpoint quando conectado."""
+        if not self.connections:
+            return
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(QPen(QColor(70, 80, 95), 1.2))
+        painter.setBrush(QBrush(QColor(70, 80, 95)))
+        painter.drawEllipse(QPointF(0.0, 0.0), 3.0, 3.0)
+        painter.restore()
+
+
+# Alias de compatibilidade
+ConnectionAnchorItem = AnchorItem
+
+
+class WaypointItem(QGraphicsRectItem):
+    """
+    Ponto de controle de roteamento (Waypoint) de uma linha de conexão UML.
+    - Quadrado 8x8 centrado na origem (-4, -4, 8, 8), preenchimento branco e borda azul.
+    - Móvel, selecionável e notifica alterações de geometria à conexão pai.
+    - Duplo clique remove o próprio waypoint da lista da conexão e da cena.
+    """
+
+    def __init__(
+        self,
+        x: float = 0.0,
+        y: float = 0.0,
+        parent_connection: Optional[DiagramConnectionItem] = None,
+        parent: Optional[QGraphicsItem] = None,
+    ) -> None:
+        super().__init__(-4.0, -4.0, 8.0, 8.0, parent)
+        self.parent_connection: Optional[DiagramConnectionItem] = parent_connection
+
+        self.setBrush(QBrush(QColor(255, 255, 255)))
+        self.setPen(QPen(QColor(37, 99, 235), 1.5))
+        self.setZValue(10)
+
+        self.setFlags(
+            QGraphicsItem.GraphicsItemFlag.ItemIsMovable
+            | QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
+            | QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges
+        )
+        self.setPos(x, y)
+
+    def itemChange(
+        self, change: QGraphicsItem.GraphicsItemChange, value: Any
+    ) -> Any:
+        if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
+            if self.parent_connection is not None:
+                self.parent_connection.update_position()
+                self.parent_connection.update()
+        return super().itemChange(change, value)
+
+    def remove_self(self) -> None:
+        """Remove a si próprio da lista de waypoints da conexão e da cena."""
+        conn = self.parent_connection
+        self.parent_connection = None
+        if conn is not None:
+            if self in conn.waypoints:
+                conn.waypoints.remove(self)
+            conn.update_position()
+            conn.update()
+
+        scene = self.scene()
+        if scene is not None:
+            scene.removeItem(self)
+        self.setParentItem(None)
+
+    def mouseDoubleClickEvent(self, event: QGraphicsSceneMouseEvent) -> None:
+        """Suicídio do waypoint ao receber duplo clique."""
+        self.remove_self()
+        if event is not None:
+            event.accept()
+
+
+class ConnectionConfigDialog(QDialog):
+    """
+    Janela de diálogo para configurar as propriedades das Extremidades 1 (Origem)
+    e 2 (Destino) de uma conexão UML (Multiplicidade, Nome e Visibilidade).
+    """
+
+    MULTIPLICITY_OPTIONS = ["", "1", "0..1", "1..*", "*"]
+    VISIBILITY_OPTIONS = ["public", "private", "protected", "package"]
+
+    def __init__(
+        self,
+        connection: Optional[DiagramConnectionItem] = None,
+        parent: Optional[QWidget] = None,
+    ) -> None:
+        super().__init__(parent)
+        self.connection = connection
+        self.setWindowTitle("Configurar Ligação UML")
+        self.setMinimumWidth(360)
+
+        main_layout = QVBoxLayout(self)
+
+        # Extremidade 1 (Origem)
+        self.group_end1 = QGroupBox("Extremidade 1 (Origem)", self)
+        self.form_end1 = QFormLayout(self.group_end1)
+
+        self.end1_mult_combo = QComboBox(self.group_end1)
+        self.end1_mult_combo.setEditable(True)
+        self.end1_mult_combo.addItems(self.MULTIPLICITY_OPTIONS)
+
+        self.end1_name_edit = QLineEdit(self.group_end1)
+        self.end1_name_edit.setPlaceholderText("Papel / nome na origem...")
+
+        self.end1_vis_combo = QComboBox(self.group_end1)
+        self.end1_vis_combo.addItems(self.VISIBILITY_OPTIONS)
+
+        self.form_end1.addRow("Multiplicidade:", self.end1_mult_combo)
+        self.form_end1.addRow("Nome:", self.end1_name_edit)
+        self.form_end1.addRow("Visibilidade:", self.end1_vis_combo)
+
+        # Extremidade 2 (Destino)
+        self.group_end2 = QGroupBox("Extremidade 2 (Destino)", self)
+        self.form_end2 = QFormLayout(self.group_end2)
+
+        self.end2_mult_combo = QComboBox(self.group_end2)
+        self.end2_mult_combo.setEditable(True)
+        self.end2_mult_combo.addItems(self.MULTIPLICITY_OPTIONS)
+
+        self.end2_name_edit = QLineEdit(self.group_end2)
+        self.end2_name_edit.setPlaceholderText("Papel / nome no destino...")
+
+        self.end2_vis_combo = QComboBox(self.group_end2)
+        self.end2_vis_combo.addItems(self.VISIBILITY_OPTIONS)
+
+        self.form_end2.addRow("Multiplicidade:", self.end2_mult_combo)
+        self.form_end2.addRow("Nome:", self.end2_name_edit)
+        self.form_end2.addRow("Visibilidade:", self.end2_vis_combo)
+
+        main_layout.addWidget(self.group_end1)
+        main_layout.addWidget(self.group_end2)
+
+        # Botões Confirmar / Cancelar
+        self.button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+            self,
+        )
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        main_layout.addWidget(self.button_box)
+
+        if self.connection is not None:
+            self._load_from_connection(self.connection)
+
+    def _load_from_connection(self, conn: DiagramConnectionItem) -> None:
+        e1 = conn.end1_props
+        e2 = conn.end2_props
+
+        self.end1_mult_combo.setCurrentText(str(e1.get("multiplicity", "")))
+        self.end1_name_edit.setText(str(e1.get("name", "")))
+        vis1 = str(e1.get("visibility", "public"))
+        idx1 = self.end1_vis_combo.findText(vis1)
+        if idx1 >= 0:
+            self.end1_vis_combo.setCurrentIndex(idx1)
+
+        self.end2_mult_combo.setCurrentText(str(e2.get("multiplicity", "")))
+        self.end2_name_edit.setText(str(e2.get("name", "")))
+        vis2 = str(e2.get("visibility", "public"))
+        idx2 = self.end2_vis_combo.findText(vis2)
+        if idx2 >= 0:
+            self.end2_vis_combo.setCurrentIndex(idx2)
+
+    def get_end1_props(self) -> Dict[str, str]:
+        nav = "unspecified"
+        if self.connection and "navigable" in self.connection.end1_props:
+            nav = self.connection.end1_props["navigable"]
+        return {
+            "multiplicity": self.end1_mult_combo.currentText().strip(),
+            "name": self.end1_name_edit.text().strip(),
+            "visibility": self.end1_vis_combo.currentText().strip() or "public",
+            "navigable": nav,
+        }
+
+    def get_end2_props(self) -> Dict[str, str]:
+        nav = "unspecified"
+        if self.connection and "navigable" in self.connection.end2_props:
+            nav = self.connection.end2_props["navigable"]
+        return {
+            "multiplicity": self.end2_mult_combo.currentText().strip(),
+            "name": self.end2_name_edit.text().strip(),
+            "visibility": self.end2_vis_combo.currentText().strip() or "public",
+            "navigable": nav,
+        }
+
+    def accept(self) -> None:
+        if self.connection is not None:
+            self.connection.end1_props.update(self.get_end1_props())
+            self.connection.end2_props.update(self.get_end2_props())
+            self.connection.prepareGeometryChange()
+            self.connection.update()
+        super().accept()
+
+
+class DiagramConnectionItem(QGraphicsLineItem):
+    """
+    Representa uma linha de conexão UML com semântica visual completa:
+    - Association: linha sólida sem pontas.
+    - Directed Association: linha sólida com seta aberta (V invertido) no destino.
+    - Aggregation: linha sólida com losango vazio na origem.
+    - Composition: linha sólida com losango preenchido na origem.
+    - Dependency: linha tracejada com seta aberta (V invertido) no destino.
+    - Generalization: linha sólida com triângulo vazio no destino.
+    - Realization / Interface Realization: linha tracejada com triângulo vazio no destino.
+    - Association Class: linha tracejada conectando a classe associativa ao ponto médio.
+    """
+
+    DASHED_TYPES = {
+        "Dependency",
+        "Realization",
+        "Interface Realization",
+        "Template Binding",
+        "Association Class",
+    }
+
+    VISIBILITY_SYMBOLS = {
+        "public": "+",
+        "private": "-",
+        "protected": "#",
+        "package": "~",
+    }
+
+    def __init__(
+        self,
+        source_node: Any,
+        target_node: Any,
+        connection_type: str = "Generalization",
+        parent: Optional[QGraphicsItem] = None,
+        end1_props: Optional[Dict[str, str]] = None,
+        end2_props: Optional[Dict[str, str]] = None,
+    ) -> None:
+        if isinstance(connection_type, QGraphicsItem):
+            parent = connection_type
+            connection_type = "Generalization"
+
         super().__init__(parent)
         self.source_node = source_node
         self.target_node = target_node
+        self.connection_type: str = connection_type or "Generalization"
 
-        self.source_node.add_connection(self)
-        self.target_node.add_connection(self)
+        # 1. Estrutura de Dados das Extremidades (end1_props e end2_props)
+        self.end1_props: Dict[str, str] = {
+            "multiplicity": "",
+            "name": "",
+            "visibility": "public",
+            "navigable": "unspecified",
+        }
+        self.end2_props: Dict[str, str] = {
+            "multiplicity": "",
+            "name": "",
+            "visibility": "public",
+            "navigable": "unspecified",
+        }
+        if end1_props:
+            self.end1_props.update(end1_props)
+        if end2_props:
+            self.end2_props.update(end2_props)
 
-        self.setPen(
-            QPen(QColor(70, 80, 95), 1.8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
-        )
+        # Referências para suporte a Association Class no ponto médio e Waypoints
+        self.waypoints: List[WaypointItem] = []
+        self.anchor_item: Optional[AnchorItem] = None
+        self.association_class_node: Optional[DiagramNodeItem] = None
+        self.association_class_link: Optional[DiagramConnectionItem] = None
+
+        if hasattr(self.source_node, "add_connection"):
+            self.source_node.add_connection(self)
+        if hasattr(self.target_node, "add_connection"):
+            self.target_node.add_connection(self)
+
         self.setZValue(-1)  # Mantém a linha sempre atrás dos nós
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
 
-        self.arrow_size = 15.0  # Comprimento do triângulo de herança
+        self.arrow_size = 15.0  # Comprimento das pontas (setas, triângulos e losangos)
+        self._configure_pen()
         self.update_position()
 
+    def _is_dashed(self) -> bool:
+        """Verifica se o tipo de conexão exige linha tracejada (DashLine)."""
+        return self.connection_type in self.DASHED_TYPES
+
+    def _configure_pen(self) -> QPen:
+        """Configura e aplica a QPen de acordo com o connection_type e estado de seleção."""
+        line_style = (
+            Qt.PenStyle.DashLine if self._is_dashed() else Qt.PenStyle.SolidLine
+        )
+        if self.isSelected():
+            color = QColor(26, 115, 232)
+            width = 2.5
+        else:
+            color = QColor(70, 80, 95)
+            width = 1.8
+
+        pen = QPen(color, width, line_style, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+        self.setPen(pen)
+        return pen
+
+    def set_connection_type(self, connection_type: str) -> None:
+        """Atualiza o tipo semântico da conexão e redesenha o item."""
+        self.connection_type = connection_type
+        self._configure_pen()
+        self.update_position()
+        self.update()
+
     def detach(self) -> None:
-        """Remove a referência desta conexão dos nós de origem e destino."""
-        if self in self.source_node.connections:
+        """Remove a referência desta conexão dos nós de origem, destino, waypoints e âncoras."""
+        if hasattr(self.source_node, "connections") and self in self.source_node.connections:
             self.source_node.connections.remove(self)
-        if self in self.target_node.connections:
+        if hasattr(self.target_node, "connections") and self in self.target_node.connections:
             self.target_node.connections.remove(self)
+
+        for wp in list(self.waypoints):
+            wp.parent_connection = None
+            if wp.scene():
+                wp.scene().removeItem(wp)
+            wp.setParentItem(None)
+        self.waypoints.clear()
+
+        if self.anchor_item is not None:
+            anchor = self.anchor_item
+            self.anchor_item = None
+            anchor.remove_all_connections()
+            if anchor.scene():
+                anchor.scene().removeItem(anchor)
 
     @staticmethod
     def intersect(line1: QLineF, line2: QLineF) -> Tuple[bool, Optional[QPointF]]:
@@ -101,45 +434,495 @@ class DiagramConnectionItem(QGraphicsLineItem):
         return False, None
 
     def get_rect_intersection(
-        self, center_line: QLineF, rect: QRectF
+        self,
+        segment: Union[QLineF, Tuple[QPointF, QPointF]],
+        rect: QRectF,
     ) -> Optional[QPointF]:
-        """Calcula o ponto onde a linha entre os centros intersecta as bordas do nó."""
+        """Calcula o ponto onde o segmento intersecta as bordas do retângulo (sceneBoundingRect)."""
+        if isinstance(segment, tuple):
+            center_line = QLineF(segment[0], segment[1])
+        else:
+            center_line = segment
+
+        if center_line.length() == 0:
+            return None
+
         edges = [
             QLineF(rect.topLeft(), rect.topRight()),
             QLineF(rect.topRight(), rect.bottomRight()),
             QLineF(rect.bottomRight(), rect.bottomLeft()),
             QLineF(rect.bottomLeft(), rect.topLeft()),
         ]
+        # 1. Tenta interseção estrita dentro do segmento (BoundedIntersection)
         for edge in edges:
             has_inter, pt = self.intersect(center_line, edge)
             if has_inter and pt is not None:
                 return pt
+
+        # 2. Fallback caso um waypoint esteja próximo/dentro do retângulo: projeta o raio na direção do segmento
+        dx = center_line.dx()
+        dy = center_line.dy()
+        length = center_line.length()
+        if length > 0:
+            scale = (max(rect.width(), rect.height()) * 2.0 + length) / length
+            extended_line = QLineF(
+                center_line.p1(),
+                QPointF(
+                    center_line.p1().x() + dx * scale,
+                    center_line.p1().y() + dy * scale,
+                ),
+            )
+            for edge in edges:
+                has_inter, pt = self.intersect(extended_line, edge)
+                if has_inter and pt is not None:
+                    return pt
         return None
 
-    def update_position(self) -> None:
-        """Recalcula os pontos inicial e final da linha com base nas bordas dos nós."""
-        if not self.source_node or not self.target_node:
-            return
-
+    def _compute_border_points(self) -> Tuple[QPointF, QPointF]:
+        """
+        Calcula os pontos de interseção com o sceneBoundingRect() das classes:
+        - Class1 (source_node) usa o segmento (centro_origem, points[1]).
+        - Class2 (target_node) usa o segmento (points[-2], centro_destino).
+        """
         source_rect = self.source_node.sceneBoundingRect()
         target_rect = self.target_node.sceneBoundingRect()
 
-        c1 = source_rect.center()
-        c2 = target_rect.center()
+        centro_origem = source_rect.center()
+        centro_destino = target_rect.center()
 
-        center_line = QLineF(c1, c2)
-        if center_line.length() == 0:
-            self.setLine(center_line)
+        raw_points: List[QPointF] = (
+            [centro_origem]
+            + [wp.pos() for wp in self.waypoints]
+            + [centro_destino]
+        )
+
+        seg_origem = QLineF(centro_origem, raw_points[1])
+        seg_destino = QLineF(raw_points[-2], centro_destino)
+
+        if isinstance(self.source_node, AnchorItem) or seg_origem.length() == 0:
+            ponto_origem_intersectado = centro_origem
+        else:
+            ponto_origem_intersectado = (
+                self.get_rect_intersection(seg_origem, source_rect) or centro_origem
+            )
+
+        if isinstance(self.target_node, AnchorItem) or seg_destino.length() == 0:
+            ponto_destino_intersectado = centro_destino
+        else:
+            ponto_destino_intersectado = (
+                self.get_rect_intersection(seg_destino, target_rect) or centro_destino
+            )
+
+        return (
+            self.mapFromScene(ponto_origem_intersectado),
+            self.mapFromScene(ponto_destino_intersectado),
+        )
+
+    def get_polyline_points(self) -> List[QPointF]:
+        """Retorna a sequência completa de pontos da Polyline: [origem] + waypoints + [destino]."""
+        ponto_origem_intersectado, ponto_destino_intersectado = (
+            self._compute_border_points()
+        )
+        return (
+            [ponto_origem_intersectado]
+            + [wp.pos() for wp in self.waypoints]
+            + [ponto_destino_intersectado]
+        )
+
+    @staticmethod
+    def _point_to_segment_distance(
+        pt: QPointF, a: QPointF, b: QPointF
+    ) -> Tuple[float, float]:
+        """Retorna (distância do ponto ao segmento AB, projeção normalizada t em [0, 1])."""
+        dx = b.x() - a.x()
+        dy = b.y() - a.y()
+        len_sq = dx * dx + dy * dy
+        if len_sq == 0.0:
+            return math.hypot(pt.x() - a.x(), pt.y() - a.y()), 0.0
+        t = ((pt.x() - a.x()) * dx + (pt.y() - a.y()) * dy) / len_sq
+        t_clamped = max(0.0, min(1.0, t))
+        proj_x = a.x() + t_clamped * dx
+        proj_y = a.y() + t_clamped * dy
+        return math.hypot(pt.x() - proj_x, pt.y() - proj_y), t_clamped
+
+    def add_waypoint(
+        self, pos: QPointF, sort_by_projection: bool = True
+    ) -> WaypointItem:
+        """
+        Instancia um WaypointItem na posição fornecida, insere na lista `self.waypoints`
+        mantendo a ordem sequencial ao longo da linha e adiciona-o à cena.
+        """
+        wp = WaypointItem(pos.x(), pos.y(), parent_connection=self)
+        if not self.waypoints or not sort_by_projection:
+            self.waypoints.append(wp)
+        else:
+            pts = self.get_polyline_points()
+            best_seg_idx = len(self.waypoints)
+            best_dist = float("inf")
+            for i in range(len(pts) - 1):
+                dist, _ = self._point_to_segment_distance(pos, pts[i], pts[i + 1])
+                if dist < best_dist:
+                    best_dist = dist
+                    best_seg_idx = i
+            self.waypoints.insert(best_seg_idx, wp)
+
+        if self.scene() is not None and wp.scene() != self.scene():
+            self.scene().addItem(wp)
+
+        self.update_position()
+        self.update()
+        return wp
+
+    def mouseDoubleClickEvent(self, event: QGraphicsSceneMouseEvent) -> None:
+        """Cria um novo WaypointItem na posição do duplo clique sobre a linha."""
+        if event is not None and event.button() == Qt.MouseButton.LeftButton:
+            click_pos = event.scenePos()
+            self.add_waypoint(click_pos, sort_by_projection=True)
+            event.accept()
+            return
+        super().mouseDoubleClickEvent(event)
+
+    def get_midpoint_scene(self) -> QPointF:
+        """Retorna o ponto médio (midpoint) ao longo da Polyline em coordenadas da cena."""
+        pts = self.get_polyline_points()
+        if len(pts) < 2:
+            return self.mapToScene(pts[0]) if pts else QPointF(0.0, 0.0)
+
+        seg_lengths = [
+            math.hypot(pts[i + 1].x() - pts[i].x(), pts[i + 1].y() - pts[i].y())
+            for i in range(len(pts) - 1)
+        ]
+        total_len = sum(seg_lengths)
+        if total_len == 0.0:
+            return self.mapToScene(pts[0])
+
+        half_len = total_len / 2.0
+        accum = 0.0
+        for i, seg_len in enumerate(seg_lengths):
+            if accum + seg_len >= half_len and seg_len > 0:
+                ratio = (half_len - accum) / seg_len
+                mx = pts[i].x() + ratio * (pts[i + 1].x() - pts[i].x())
+                my = pts[i].y() + ratio * (pts[i + 1].y() - pts[i].y())
+                return self.mapToScene(QPointF(mx, my))
+            accum += seg_len
+
+        mid_local = QPointF(
+            (pts[0].x() + pts[-1].x()) / 2.0, (pts[0].y() + pts[-1].y()) / 2.0
+        )
+        return self.mapToScene(mid_local)
+
+    def _sync_anchor_position(self, p1: QPointF, p2: QPointF) -> None:
+        """Mantém o nó de ancoragem sincronizado exatamente no ponto médio da Polyline."""
+        if self.anchor_item is not None:
+            mid_scene = self.get_midpoint_scene()
+            self.anchor_item.setPos(mid_scene)
+            for conn in list(self.anchor_item.connections):
+                conn.update_position()
+
+    def update_position(self) -> None:
+        """Recalcula os pontos inicial e final da linha nas bordas (Bounding Box) dos nós."""
+        if not self.source_node or not self.target_node:
             return
 
-        p1 = self.get_rect_intersection(center_line, source_rect) or c1
-        p2 = self.get_rect_intersection(center_line, target_rect) or c2
+        self.prepareGeometryChange()
+        p1, p2 = self._compute_border_points()
+        self.setLine(QLineF(p1, p2))
+        self._sync_anchor_position(p1, p2)
 
-        self.setLine(QLineF(self.mapFromScene(p1), self.mapFromScene(p2)))
+    def open_config_dialog(self) -> bool:
+        """Abre a janela de diálogo ConnectionConfigDialog para editar end1_props e end2_props."""
+        win = get_main_window(self)
+        dialog = ConnectionConfigDialog(self, parent=win)
+        if dialog.exec() == int(QDialog.DialogCode.Accepted):
+            self.end1_props.update(dialog.get_end1_props())
+            self.end2_props.update(dialog.get_end2_props())
+            self.prepareGeometryChange()
+            self.update()
+            return True
+        return False
+
+    def ensure_anchor_item(self) -> AnchorItem:
+        """Garante a existência de um AnchorItem no ponto médio desta conexão."""
+        midpoint = self.get_midpoint_scene()
+        if self.anchor_item is None:
+            self.anchor_item = AnchorItem(
+                midpoint.x(), midpoint.y(), parent_connection=self
+            )
+            if self.scene() and self.anchor_item.scene() != self.scene():
+                self.scene().addItem(self.anchor_item)
+        else:
+            self.anchor_item.setPos(midpoint)
+            if self.scene() and self.anchor_item.scene() != self.scene():
+                self.scene().addItem(self.anchor_item)
+        return self.anchor_item
+
+    def add_association_class(
+        self, assoc_node: Optional[DiagramNodeItem] = None
+    ) -> Optional[DiagramNodeItem]:
+        """
+        Cria um nó de ancoragem no midpoint da linha, instancia um DiagramNodeItem
+        chamado 'AssociationClass' e conecta-os com uma linha tracejada ('Association Class').
+        """
+        scene = self.scene()
+        if scene is None:
+            return None
+
+        # a) Calcula o ponto médio (midpoint) da linha atual
+        p1, p2 = self._compute_border_points()
+        midpoint = self.mapToScene(
+            QPointF((p1.x() + p2.x()) / 2.0, (p1.y() + p2.y()) / 2.0)
+        )
+
+        # b) Cria o nó de ancoragem nesse midpoint
+        anchor = self.ensure_anchor_item()
+
+        # c) Instancia automaticamente um novo DiagramNodeItem chamado "AssociationClass"
+        if assoc_node is None:
+            dx = p2.x() - p1.x()
+            dy = p2.y() - p1.y()
+            length = math.hypot(dx, dy) or 1.0
+            nx = -dy / length
+            ny = dx / length
+            if ny < 0:
+                nx, ny = -nx, -ny
+
+            node_x = midpoint.x() + nx * 90.0 - 85.0
+            node_y = midpoint.y() + ny * 90.0
+            assoc_node = DiagramNodeItem(
+                title="AssociationClass",
+                x=node_x,
+                y=node_y,
+                width=170,
+                height=110,
+            )
+            scene.addItem(assoc_node)
+
+        # d) Cria o DiagramConnectionItem com connection_type="Association Class"
+        assoc_conn = DiagramConnectionItem(
+            assoc_node,
+            anchor,
+            connection_type="Association Class",
+        )
+        scene.addItem(assoc_conn)
+
+        self.association_class_node = assoc_node
+        self.association_class_link = assoc_conn
+        self._sync_anchor_position(p1, p2)
+
+        win = get_main_window(self)
+        if win and hasattr(win, "update_tree"):
+            win.update_tree()
+
+        return assoc_node
+
+    def contextMenuEvent(self, event: QGraphicsSceneContextMenuEvent) -> None:
+        """Menu de contexto da conexão com opções de configuração e classe associativa."""
+        menu = QMenu()
+        action_config = menu.addAction("Configurar Ligação...")
+        action_assoc_class = menu.addAction("Adicionar Classe Associativa")
+
+        selected = menu.exec(event.screenPos())
+        if selected == action_config:
+            self.open_config_dialog()
+        elif selected == action_assoc_class:
+            self.add_association_class()
+
+        event.accept()
+
+    def draw_open_arrow(
+        self, painter: QPainter, point_end: QPointF, angle_destino: float, solid_pen: QPen
+    ) -> None:
+        """Desenha Seta Aberta (V invertido) no destino usando translate(points[-1]) e rotate(angle_destino)."""
+        s = self.arrow_size
+        w = self.arrow_size * 0.55
+
+        painter.save()
+        painter.translate(point_end)
+        painter.rotate(angle_destino)
+        painter.setPen(solid_pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+
+        arrow_poly = QPolygonF([
+            QPointF(-s, -w),
+            QPointF(0.0, 0.0),
+            QPointF(-s, w),
+        ])
+        painter.drawPolyline(arrow_poly)
+        painter.restore()
+
+    def draw_hollow_triangle(
+        self, painter: QPainter, point_end: QPointF, angle_destino: float, solid_pen: QPen
+    ) -> None:
+        """Desenha Triângulo Vazio (fundo branco) no destino usando translate(points[-1]) e rotate(angle_destino)."""
+        s = self.arrow_size
+        w = self.arrow_size * 0.55
+
+        painter.save()
+        painter.translate(point_end)
+        painter.rotate(angle_destino)
+        painter.setPen(solid_pen)
+        painter.setBrush(QBrush(QColor(255, 255, 255)))
+
+        triangle_poly = QPolygonF([
+            QPointF(0.0, 0.0),
+            QPointF(-s, -w),
+            QPointF(-s, w),
+        ])
+        painter.drawPolygon(triangle_poly)
+        painter.restore()
+
+    def draw_diamond(
+        self,
+        painter: QPainter,
+        point_start: QPointF,
+        angle_origem: float,
+        solid_pen: QPen,
+        filled: bool = False,
+    ) -> None:
+        """Desenha Losango Vazio (Aggregation) ou Preenchido (Composition) na origem usando translate(points[0]) e rotate(angle_origem)."""
+        s = self.arrow_size * 0.75
+        w = self.arrow_size * 0.45
+
+        painter.save()
+        painter.translate(point_start)
+        painter.rotate(angle_origem)
+        painter.setPen(solid_pen)
+        if filled:
+            painter.setBrush(QBrush(solid_pen.color()))
+        else:
+            painter.setBrush(QBrush(QColor(255, 255, 255)))
+
+        diamond_poly = QPolygonF([
+            QPointF(0.0, 0.0),
+            QPointF(s, -w),
+            QPointF(2.0 * s, 0.0),
+            QPointF(s, w),
+        ])
+        painter.drawPolygon(diamond_poly)
+        painter.restore()
+
+    def _format_role_name(self, props: Dict[str, str]) -> str:
+        """Formata o nome do papel (role name) com o símbolo de visibilidade correspondente."""
+        raw_name = str(props.get("name", "")).strip()
+        if not raw_name:
+            return ""
+        if raw_name[0] in ("+", "-", "#", "~"):
+            return raw_name
+        vis = str(props.get("visibility", "public")).strip().lower()
+        symbol = self.VISIBILITY_SYMBOLS.get(vis, "+")
+        return f"{symbol}{raw_name}"
+
+    def _draw_endpoint_labels(
+        self, painter: QPainter, points: List[QPointF]
+    ) -> None:
+        """
+        Desenha a multiplicidade e o nome das extremidades (end1_props e end2_props)
+        usando o primeiro e o último segmento da Polyline (~20px de offset).
+        """
+        if len(points) < 2:
+            return
+
+        painter.save()
+        font = QFont("Segoe UI", 9)
+        painter.setFont(font)
+        painter.setPen(QPen(QColor(30, 41, 59)))
+        fm = painter.fontMetrics()
+
+        offset1 = 28.0 if self.connection_type in ("Aggregation", "Composition") else 22.0
+        offset2 = (
+            26.0
+            if self.connection_type
+            in (
+                "Directed Association",
+                "Dependency",
+                "Generalization",
+                "Realization",
+                "Interface Realization",
+            )
+            else 22.0
+        )
+        perp_dist = 14.0
+
+        # Extremidade 1 (Origem): usa o primeiro segmento (points[0] -> points[1])
+        p1 = points[0]
+        p1_next = points[1]
+        dx1 = p1_next.x() - p1.x()
+        dy1 = p1_next.y() - p1.y()
+        len1 = math.hypot(dx1, dy1)
+        if len1 > 0:
+            ux1 = dx1 / len1
+            uy1 = dy1 / len1
+            nx1, ny1 = -uy1, ux1
+            if ny1 > 0:
+                nx1, ny1 = -nx1, -ny1
+
+            base1 = QPointF(p1.x() + ux1 * offset1, p1.y() + uy1 * offset1)
+            mult1 = str(self.end1_props.get("multiplicity", "")).strip()
+            name1 = self._format_role_name(self.end1_props)
+
+            if mult1:
+                tw = fm.horizontalAdvance(mult1)
+                th = fm.ascent()
+                pos_m1 = QPointF(
+                    base1.x() + nx1 * perp_dist - tw / 2.0,
+                    base1.y() + ny1 * perp_dist + th / 2.0,
+                )
+                painter.drawText(pos_m1, mult1)
+
+            if name1:
+                tw = fm.horizontalAdvance(name1)
+                th = fm.ascent()
+                pos_n1 = QPointF(
+                    base1.x() - nx1 * perp_dist - tw / 2.0,
+                    base1.y() - ny1 * perp_dist + th / 2.0,
+                )
+                painter.drawText(pos_n1, name1)
+
+        # Extremidade 2 (Destino): usa o último segmento (points[-2] -> points[-1])
+        p2_prev = points[-2]
+        p2 = points[-1]
+        dx2 = p2.x() - p2_prev.x()
+        dy2 = p2.y() - p2_prev.y()
+        len2 = math.hypot(dx2, dy2)
+        if len2 > 0:
+            ux2 = dx2 / len2
+            uy2 = dy2 / len2
+            nx2, ny2 = -uy2, ux2
+            if ny2 > 0:
+                nx2, ny2 = -nx2, -ny2
+
+            base2 = QPointF(p2.x() - ux2 * offset2, p2.y() - uy2 * offset2)
+            mult2 = str(self.end2_props.get("multiplicity", "")).strip()
+            name2 = self._format_role_name(self.end2_props)
+
+            if mult2:
+                tw = fm.horizontalAdvance(mult2)
+                th = fm.ascent()
+                pos_m2 = QPointF(
+                    base2.x() + nx2 * perp_dist - tw / 2.0,
+                    base2.y() + ny2 * perp_dist + th / 2.0,
+                )
+                painter.drawText(pos_m2, mult2)
+
+            if name2:
+                tw = fm.horizontalAdvance(name2)
+                th = fm.ascent()
+                pos_n2 = QPointF(
+                    base2.x() - nx2 * perp_dist - tw / 2.0,
+                    base2.y() - ny2 * perp_dist + th / 2.0,
+                )
+                painter.drawText(pos_n2, name2)
+
+        painter.restore()
 
     def boundingRect(self) -> QRectF:
-        """Expande os limites para garantir renderização correta do triângulo da seta."""
-        extra = (self.pen().widthF() + self.arrow_size) / 2.0 + 8.0
+        """Expande os limites englobando todos os waypoints, pontas e textos."""
+        extra = self.pen().widthF() + self.arrow_size * 2.0 + 60.0
+        if self.source_node and self.target_node:
+            pts = self.get_polyline_points()
+            if pts:
+                poly_rect = QPolygonF(pts).boundingRect()
+                return poly_rect.normalized().adjusted(-extra, -extra, extra, extra)
         return (
             QRectF(self.line().p1(), self.line().p2())
             .normalized()
@@ -147,34 +930,25 @@ class DiagramConnectionItem(QGraphicsLineItem):
         )
 
     def shape(self) -> QPainterPath:
-        """Define a área de clique incluindo a linha e o triângulo de herança."""
-        path = super().shape()
-        line = self.line()
-        if line.length() > 0:
-            dx = line.dx()
-            dy = line.dy()
-            length = line.length()
-            ux = dx / length
-            uy = dy / length
-            nx = -uy
-            ny = ux
-
-            tip = line.p2()
-            base_center = QPointF(
-                tip.x() - ux * self.arrow_size, tip.y() - uy * self.arrow_size
-            )
-            half_w = self.arrow_size * 0.55
-            c1 = QPointF(base_center.x() + nx * half_w, base_center.y() + ny * half_w)
-            c2 = QPointF(base_center.x() - nx * half_w, base_center.y() - ny * half_w)
-
-            arrow_poly = QPolygonF([tip, c1, c2])
-            arrow_path = QPainterPath()
-            arrow_path.addPolygon(arrow_poly)
-            path.addPath(arrow_path)
-        return path
+        """Define uma área de clique confortável ao longo de toda a Polyline."""
+        if self.source_node and self.target_node:
+            pts = self.get_polyline_points()
+            if len(pts) >= 2:
+                base_path = QPainterPath()
+                base_path.moveTo(pts[0])
+                for pt in pts[1:]:
+                    base_path.lineTo(pt)
+                stroker = QPainterPathStroker()
+                stroker.setWidth(14.0)
+                path = stroker.createStroke(base_path)
+                r = self.arrow_size
+                path.addEllipse(pts[0], r, r)
+                path.addEllipse(pts[-1], r, r)
+                return path
+        return super().shape()
 
     def paint(self, painter: QPainter, option: Any, widget: Optional[QWidget] = None) -> None:
-        """Renderiza a linha de ligação e o triângulo de herança UML."""
+        """Renderiza a Polyline de ligação, extremidades UML e textos (multiplicidade/nomes)."""
         if (
             not self.source_node
             or not self.target_node
@@ -183,61 +957,69 @@ class DiagramConnectionItem(QGraphicsLineItem):
         ):
             return
 
-        line = self.line()
-        if line.length() == 0:
+        # 1 & 4. Obtém os pontos de interseção e constrói a lista completa de pontos da conexão
+        ponto_origem_intersectado, ponto_destino_intersectado = (
+            self._compute_border_points()
+        )
+        points: List[QPointF] = (
+            [ponto_origem_intersectado]
+            + [wp.pos() for wp in self.waypoints]
+            + [ponto_destino_intersectado]
+        )
+        if len(points) < 2:
             return
+
+        # 2. Correção Trigonométrica para as Pontas (CRÍTICO):
+        # Ângulo da ORIGEM (End 1) calculado APENAS entre points[0] e points[1]
+        dy_origem = points[1].y() - points[0].y()
+        dx_origem = points[1].x() - points[0].x()
+        if math.hypot(dx_origem, dy_origem) == 0 and len(points) == 2:
+            return
+        angle_origem = math.degrees(math.atan2(dy_origem, dx_origem))
+
+        # Ângulo do DESTINO (End 2) calculado APENAS entre points[-2] e points[-1]
+        dy_destino = points[-1].y() - points[-2].y()
+        dx_destino = points[-1].x() - points[-2].x()
+        angle_destino = math.degrees(math.atan2(dy_destino, dx_destino))
 
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
 
-        pen = QPen(self.pen())
-        if self.isSelected():
-            pen.setColor(QColor(26, 115, 232))
-            pen.setStyle(Qt.PenStyle.DashLine)
-            pen.setWidthF(2.5)
+        # Configura o estilo da linha conforme o tipo de conexão UML
+        if self.connection_type in (
+            "Dependency",
+            "Realization",
+            "Interface Realization",
+            "Template Binding",
+            "Association Class",
+        ):
+            line_style = Qt.PenStyle.DashLine
         else:
-            pen.setColor(QColor(70, 80, 95))
-            pen.setStyle(Qt.PenStyle.SolidLine)
-            pen.setWidthF(1.8)
+            line_style = Qt.PenStyle.SolidLine
+
+        color = QColor(26, 115, 232) if self.isSelected() else QColor(70, 80, 95)
+        width = 2.5 if self.isSelected() else 1.8
+
+        pen = QPen(color, width, line_style, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
         painter.setPen(pen)
 
-        p1 = line.p1()
-        p2 = line.p2()
+        # Desenha PRIMEIRO a linha principal (Polyline)
+        painter.drawPolyline(QPolygonF(points))
 
-        dx = p2.x() - p1.x()
-        dy = p2.y() - p1.y()
-        length = math.hypot(dx, dy)
-        if length == 0:
-            return
+        # 3. Isolamento e Renderização das pontas com painter.save() / painter.restore()
+        solid_pen = QPen(color, width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
 
-        ux = dx / length
-        uy = dy / length
-        nx = -uy
-        ny = ux
+        if self.connection_type in ("Directed Association", "Dependency", "Template Binding"):
+            self.draw_open_arrow(painter, points[-1], angle_destino, solid_pen)
+        elif self.connection_type in ("Generalization", "Realization", "Interface Realization"):
+            self.draw_hollow_triangle(painter, points[-1], angle_destino, solid_pen)
+        elif self.connection_type == "Aggregation":
+            self.draw_diamond(painter, points[0], angle_origem, solid_pen, filled=False)
+        elif self.connection_type == "Composition":
+            self.draw_diamond(painter, points[0], angle_origem, solid_pen, filled=True)
 
-        arrow_length = self.arrow_size
-        arrow_half_width = self.arrow_size * 0.55
-
-        tip = p2
-        base_center = QPointF(tip.x() - ux * arrow_length, tip.y() - uy * arrow_length)
-        c1 = QPointF(
-            base_center.x() + nx * arrow_half_width,
-            base_center.y() + ny * arrow_half_width,
-        )
-        c2 = QPointF(
-            base_center.x() - nx * arrow_half_width,
-            base_center.y() - ny * arrow_half_width,
-        )
-
-        arrow_head = QPolygonF([tip, c1, c2])
-
-        if length > arrow_length:
-            painter.drawLine(QLineF(p1, base_center))
-
-        triangle_pen = QPen(pen)
-        triangle_pen.setStyle(Qt.PenStyle.SolidLine)
-        painter.setPen(triangle_pen)
-        painter.setBrush(QBrush(QColor(255, 255, 255)))
-        painter.drawPolygon(arrow_head)
+        # Renderiza multiplicidades e nomes nas extremidades 1 e 2
+        self._draw_endpoint_labels(painter, points)
 
 
 class EditableTextItem(QGraphicsTextItem):
